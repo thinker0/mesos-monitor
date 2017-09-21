@@ -106,16 +106,15 @@ def defineProject(n: String): Project = {
 lazy val `mesos-idl` = defineProject("idl")
   .settings(
     libraryDependencies ++= Seq(
-      "io.grpc" % "grpc-protobuf" % versions.grpc,
-      "io.grpc" % "grpc-netty" % versions.grpc,
-      "io.grpc" % "grpc-stub" % versions.grpc,
+//      "io.grpc" % "grpc-protobuf" % versions.grpc,
+//      "io.grpc" % "grpc-netty" % versions.grpc,
+//      "io.grpc" % "grpc-stub" % versions.grpc,
 
       // "com.trueaccord.scalapb" %% "scalapb-json4s" % versions.scalaPb,
       "com.trueaccord.scalapb" %% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion % "protobuf",
       "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % com.trueaccord.scalapb.compiler.Version.scalapbVersion,
 
       "com.google.protobuf" % "protobuf-java" % versions.protoBuf % "protobuf",
-      "com.mesosphere.mesos.rx.java" % "mesos-rxjava-protobuf-client" % "0.2.0",
       "io.grpc" % "grpc-testing" % versions.grpc % "test",
       "org.mockito" % "mockito-core" % "1.9.5" % "test"
 

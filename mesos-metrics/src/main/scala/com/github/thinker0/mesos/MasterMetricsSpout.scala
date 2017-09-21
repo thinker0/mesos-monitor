@@ -6,15 +6,16 @@ import java.util.concurrent.TimeUnit
 import java.util.{Timer, TimerTask, Map => JMap}
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import com.fasterxml.jackson.module.scala.{DefaultScalaModule, ScalaModule}
 import com.twitter.finagle.Service
-import com.twitter.finagle.http.{Request, RequestBuilder, Response}
+import com.twitter.finagle.http.{Request, Response}
 import com.twitter.heron.api.metric.{MeanReducer, MeanReducerState, MultiCountMetric, MultiReducedMetric}
 import com.twitter.io.Buf
 import com.twitter.util.Future
 import io.grpc.{ManagedChannel, ManagedChannelBuilder}
-import org.apache.mesos.v1.master.master.Response.GetTasks
+import org.apache.mesos.v1.master.master.Call
+import org.apache.mesos.v1.master.master.Call.Type
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.OutputFieldsDeclarer
@@ -52,51 +53,20 @@ class MasterMetricsSpout(url: URL) extends BaseRichSpout {
       .usePlaintext(true)
       .build()
     logger.info(s"Host: ${url}")
-    
+
     scheduleTimer.scheduleAtFixedRate(new TimerTask() {
       val requestBody = Buf.Utf8("""{"type":"GET_TASKS","get_metrics":{"timeout":{"nanoseconds":5000000000}}}""".trim)
       val objectMapper: ObjectMapper with ScalaObjectMapper = (new ObjectMapper with ScalaObjectMapper)
         .registerModule(DefaultScalaModule)
         .asInstanceOf[ObjectMapper with ScalaObjectMapper]
-
+      // org.apache.mesos.v1.mesos.MesosProto.scalaDescriptor.
 
       def run() = {
         val startTime = System.currentTimeMillis()
-        val request = RequestBuilder().url(url).setHeader("Host", url.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
-        logger.info(s"Scheduler Updated  $request ${request.contentString} !!!!!!!!!!!!!")
-        for {
-          masterExecutor <- masterHost
-          response <- masterExecutor(request)
-        } yield {
-          response.statusCode match {
-            case 200 =>
-              lastUpdated = System.currentTimeMillis()
-              logger.info(s"Response: $url ${response.statusCode} ${System.currentTimeMillis() - startTime}ms")
-              lastTasks = response.contentString
-              val tasks = objectMapper.readValue[GetTasks](response.contentString)
-              logger.info(s"$tasks")
-            case 307 =>
-              val redir = new URL(s"${url.getProtocol}:${response.location.get}")
-              val request2 = RequestBuilder().url(redir).setHeader("Host", redir.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
-              logger.info(s"new Leader: $redir")
-              logger.info(s"${request2} ${request2.contentString}")
-              for {
-                leaderHost <- CachedHttpModules.provideHttpService(redir.getHost, redir.getPort)
-                response2 <- leaderHost(request2)
-              } yield {
-                response2.statusCode match {
-                  case 200 =>
-                    lastUpdated = System.currentTimeMillis()
-                    logger.info(s"Response: ${redir} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
-                    lastTasks = response2.contentString
-                  case _ =>
-                    logger.info(s"Response: ${redir} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
-                }
-              }
-            case _ =>
-              logger.info(s"Response: ${url} ${response.statusCode} ${response.contentString} ${System.currentTimeMillis() - startTime}ms")
-          }
-        }
+        val call = Call(`type` = Option(Type.GET_STATE))
+        logger.info(s"$call")
+        // channel.newCall[Call, Response]()
+        // channel.newCall()
       }
     }, 1000, cacheBuildDuration.toMillis)
     logger.info("Opened")

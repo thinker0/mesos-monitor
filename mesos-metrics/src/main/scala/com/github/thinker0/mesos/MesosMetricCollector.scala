@@ -20,7 +20,7 @@ object MesosMetricCollector extends App {
     val builder = new TopologyBuilder
     val topologyConfig = new Config()
 
-    builder.setSpout("master", new MasterAPIMetricsSpout(new URL(mesosMaster())), 1)
+    builder.setSpout("master", new MasterMetricsSpout(new URL(mesosMaster())), 1)
 
     builder.setBolt("metrics", new MasterMetricsBolt).shuffleGrouping("master")
 
