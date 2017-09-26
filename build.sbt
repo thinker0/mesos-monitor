@@ -107,7 +107,7 @@ lazy val `mesos-idl` = defineProject("idl")
   .settings(
     libraryDependencies ++= Seq(
 //      "io.grpc" % "grpc-protobuf" % versions.grpc,
-//      "io.grpc" % "grpc-netty" % versions.grpc,
+      "io.grpc" % "grpc-netty" % versions.grpc,
 //      "io.grpc" % "grpc-stub" % versions.grpc,
 
       // "com.trueaccord.scalapb" %% "scalapb-json4s" % versions.scalaPb,

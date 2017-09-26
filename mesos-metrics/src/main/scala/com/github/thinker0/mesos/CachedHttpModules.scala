@@ -9,6 +9,8 @@ import com.twitter.finagle.transport.Transport
 import com.twitter.finagle.{Http, Service, http}
 import com.twitter.util.Future
 import org.slf4j.LoggerFactory
+import com.twitter.conversions.storage._
+ import com.twitter.util.StorageUnit
 
 object CachedHttpModules extends AbstractModule {
   final val logger = LoggerFactory getLogger this.getClass.getName
@@ -26,10 +28,11 @@ object CachedHttpModules extends AbstractModule {
       logger.info(s"New HttpClient: $hostAndPort")
       val client = Future {
         Http.client
-          .withRequestTimeout(10000.millis)
+          .withRequestTimeout(30000.millis)
           .configured(Transport.Options(noDelay = true, reuseAddr = true))
-          .withSession.acquisitionTimeout(3000.millis)
-          .withSessionPool.maxSize(10)
+          .withSession.acquisitionTimeout(30000.millis)
+          .withSessionPool.maxSize(1)
+            .withMaxResponseSize(10.megabytes)
           .newService(hostAndPort, "mesos-agents")
       }
       evictionCache.set(hostAndPort, client)

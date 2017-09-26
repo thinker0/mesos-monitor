@@ -8,11 +8,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.twitter.finagle.Service
-import com.twitter.finagle.http.{Request, RequestBuilder, Response}
+import com.twitter.finagle.http
 import com.twitter.heron.api.metric.{MeanReducer, MeanReducerState, MultiCountMetric, MultiReducedMetric}
 import com.twitter.io.Buf
 import com.twitter.util.Future
-import org.apache.mesos.v1.master.master.Response.GetTasks
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.OutputFieldsDeclarer
@@ -30,7 +29,7 @@ class MasterAPIMetricsSpout(url: URL) extends BaseRichSpout {
   private var lastExecuted: Long = 0
   private var lastTasks: String = ""
   private val cacheBuildDuration = 1.minutes
-  private var masterHost: Future[Service[Request, Response]] = _
+  private var masterHost: Future[Service[http.Request, http.Response]] = _
 
   private var countMetrics: MultiCountMetric = _
   private var reducedMetrics: MultiReducedMetric[MeanReducerState, Number, JDouble] = _
@@ -47,7 +46,7 @@ class MasterAPIMetricsSpout(url: URL) extends BaseRichSpout {
     this.scheduleTimer = new Timer(true)
     logger.info(s"Host: ${url}")
     scheduleTimer.scheduleAtFixedRate(new TimerTask() {
-      val requestBody = Buf.Utf8("""{"type":"GET_TASKS","get_metrics":{"timeout":{"nanoseconds":5000000000}}}""".trim)
+      val requestBody = Buf.Utf8("""{"type":"GET_STATE"}""".trim)
 
       val objectMapper: ObjectMapper with ScalaObjectMapper = (new ObjectMapper with ScalaObjectMapper)
         .registerModule(DefaultScalaModule)
@@ -55,46 +54,54 @@ class MasterAPIMetricsSpout(url: URL) extends BaseRichSpout {
 
       def run() = {
         val startTime = System.currentTimeMillis()
-        val request = RequestBuilder().url(url).setHeader("Host", url.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
+        val request = http.RequestBuilder().url(url).setHeader("Host", url.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
+        request.host(url.getHost)
         logger.info(s"Scheduler Updated  $request ${request.contentString} !!!!!!!!!!!!!")
         for {
           masterExecutor <- masterHost
-          response <- masterExecutor(request)
         } yield {
-          try {
-            response.statusCode match {
-              case 200 =>
-                lastUpdated = System.currentTimeMillis()
-                logger.info(s"Response: $url ${response.statusCode} ${System.currentTimeMillis() - startTime}ms")
-                lastTasks = response.contentString
-                val tasks = objectMapper.readValue[GetTasks](response.contentString)
-                logger.info(s"Tasks: $tasks")
-              case 307 =>
-                val redir = new URL(s"${url.getProtocol}:${response.location.get}")
-                val request2 = RequestBuilder().url(redir).setHeader("Host", redir.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
-                logger.info(s"new Leader: $redir")
-                logger.info(s"${request2} ${request2.contentString}")
-                for {
-                  leaderHost <- CachedHttpModules.provideHttpService(redir.getHost, redir.getPort)
-                  response2 <- leaderHost(request2)
-                } yield {
-                  response2.statusCode match {
-                    case 200 =>
-                      lastUpdated = System.currentTimeMillis()
-                      logger.info(s"Response: ${redir} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
-                      lastTasks = response2.contentString
-                      val tasks = objectMapper.readValue[GetTasks](response2.contentString)
-                      logger.info(s"Tasks: $tasks")
-                    case _ =>
-                      logger.info(s"Response: ${redir} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
+          masterExecutor(request).onSuccess { response: http.Response =>
+            try {
+              response.statusCode match {
+                case 200 =>
+                  lastUpdated = System.currentTimeMillis()
+                  logger.info(s"Response: $url ${response.statusCode} ${System.currentTimeMillis() - startTime}ms")
+                  val tasks = objectMapper.readValue[GetState](response.getInputStream())
+                  lastTasks = response.contentString
+                  logger.info(s"Tasks: $tasks")
+                case 307 =>
+                  val newLeader = new URL(s"${url.getProtocol}:${response.location.get}")
+                  val request2 = http.RequestBuilder().url(newLeader).setHeader("Host", newLeader.getHost).setHeader("Content-Type", "application/json").buildPost(requestBody)
+                  request2.host(url.getHost)
+                  logger.info(s"new Leader: $newLeader")
+                  logger.info(s"${request2} ${request2.contentString}")
+                  for {
+                    leaderHost <- CachedHttpModules.provideHttpService(newLeader.getHost, newLeader.getPort)
+                  } yield {
+                    leaderHost(request2).onSuccess { response2: http.Response =>
+                      response2.statusCode match {
+                        case 200 =>
+                          lastUpdated = System.currentTimeMillis()
+                          logger.info(s"Response: ${newLeader} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
+                          lastTasks = response2.contentString
+                          val tasks = objectMapper.readValue[GetState](response2.getInputStream())
+                          logger.info(s"Tasks: $tasks $lastTasks")
+                        case _ =>
+                          logger.info(s"Response: ${newLeader} ${response2.statusCode} ${System.currentTimeMillis() - startTime}ms")
+                      }
+                    }.onFailure { t: Throwable =>
+                      logger.error(t.getMessage, t)
+                    }
                   }
-                }
-              case _ =>
-                logger.info(s"Response: ${url} ${response.statusCode} ${response.contentString} ${System.currentTimeMillis() - startTime}ms")
+                case _ =>
+                  logger.info(s"Response: ${url} ${response.statusCode} ${response.contentString} ${System.currentTimeMillis() - startTime}ms")
+              }
+            } catch {
+              case t: Throwable =>
+               logger.error(t.getMessage, t)
             }
-          } catch {
-            case t: Throwable =>
-             logger.error(t.getMessage, t)
+          }.onFailure { t: Throwable =>
+            logger.error(t.getMessage, t)
           }
         }
       }

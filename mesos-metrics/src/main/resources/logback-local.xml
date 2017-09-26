@@ -1,12 +1,5 @@
 <configuration>
 
-  <appender name="SENTRY" class="com.getsentry.raven.logback.SentryAppender">
-    <dsn>https://2fcb9c3ab6874608a721a8f484257a56:7cecf3da78f6402386300522a5eda55c@sentry.kakao.com/429?options</dsn>
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>ERROR</level>
-    </filter>
-  </appender>
-
   <!-- ===================================================== -->
   <!-- Primary Appenders -->
   <!-- ===================================================== -->
@@ -64,9 +57,6 @@
   <!-- Per-Package Config -->
   <logger name="com.twitter" level="info"/>
   <logger name="com.twitter.finatra" level="info"/>
-  <logger name="com.kakao.heimdall" level="info"/>
-  <logger name="io.daumkakao.tangram" level="info"/>
-
   <logger name="com.twitter.finatra.http.filters.AccessLoggingFilter"
           level="warn"
           additivity="false">

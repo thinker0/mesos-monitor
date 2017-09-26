@@ -1,35 +1,29 @@
 <configuration>
-
-  <appender name="SENTRY" class="com.getsentry.raven.logback.SentryAppender">
-    <dsn>https://2fcb9c3ab6874608a721a8f484257a56:7cecf3da78f6402386300522a5eda55c@sentry.kakao.com/429?options</dsn>
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>ERROR</level>
-    </filter>
-  </appender>
-
   <!-- ===================================================== -->
-  <!-- Primary Appenders -->
+  <!-- Primary Async Appenders -->
   <!-- ===================================================== -->
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <target>System.out</target>
     <encoder>
       <charset>UTF-8</charset>
-      <pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level{5}) - %magenta(%30.30logger{20}) - %cyan(%20.20thread{20}) - %message%n</pattern>
-      <!--<pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %.-4level %-16X{traceId} - %30.-30logger{30} - %20.-20thread{30} - %message%n</pattern>-->
+      <!--<pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %.-4level %-16X{traceId} - %logger{20} - %thread{20} - %message%n</pattern>-->
+      <pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level{5}) %-16X{traceId} - %magenta(%30.30logger{20}) - %cyan(%20.20thread{20}) - %message%n</pattern>
     </encoder>
   </appender>
   <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
-    <target>System.out</target>
+    <target>System.err</target>
     <encoder>
       <charset>UTF-8</charset>
-      <pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level{5}) - %magenta(%30.30logger{20}) - %cyan(%20.20thread{20}) - %message%n</pattern>
-      <!--<pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %.-4level %-16X{traceId} - %30.-30logger{30} - %20.-20thread{30} - %message%n</pattern>-->
+      <!--<pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %.-4level %-16X{traceId} - %logger{20} - %thread{20} - %message%n</pattern>-->
+      <pattern>%date{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level{5}) %-16X{traceId} - %magenta(%30.30logger{20}) - %cyan(%20.20thread{20}) - %message%n</pattern>
     </encoder>
   </appender>
+  <appender name="SENTRY" class="io.sentry.logback.SentryAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>ERROR</level>
+    </filter>
+  </appender>
 
-  <!-- ===================================================== -->
-  <!-- Primary Async Appenders -->
-  <!-- ===================================================== -->
   <property name="async_queue_size" value="${queue.size:-1024}"/>
   <property name="async_max_flush_time" value="${max.flush.time:-0}"/>
 
@@ -42,7 +36,7 @@
   <appender name="ASYNC-ACCESS" class="ch.qos.logback.classic.AsyncAppender">
     <queueSize>${async_queue_size}</queueSize>
     <maxFlushTime>${async_max_flush_time}</maxFlushTime>
-    <appender-ref ref="STDERR"/>
+    <appender-ref ref="STDOUT"/>
   </appender>
 
   <appender name="ASYNC-SENTRY" class="ch.qos.logback.classic.AsyncAppender">
@@ -56,7 +50,7 @@
   <!-- ===================================================== -->
 
   <!-- Root Config -->
-  <root level="info">
+  <root level="INFO">
     <appender-ref ref="ASYNC-SERVICE"/>
     <appender-ref ref="ASYNC-SENTRY" />
   </root>
@@ -64,11 +58,5 @@
   <!-- Per-Package Config -->
   <logger name="com.twitter" level="info"/>
   <logger name="com.twitter.finagle" level="debug"/>
-
-  <logger name="com.twitter.finatra.http.filters.AccessLoggingFilter"
-          level="warn"
-          additivity="false">
-    <appender-ref ref="ASYNC-ACCESS"/>
-  </logger>
 
 </configuration>
